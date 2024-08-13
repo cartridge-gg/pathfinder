@@ -38,7 +38,10 @@ mod tests {
     use crate::v06::method::estimate_fee::*;
     use crate::v06::types::PriceUnit;
 
-    fn declare_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn declare_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         let sierra_definition = include_bytes!("../../../fixtures/contracts/storage_access.json");
         let sierra_hash =
             class_hash!("0544b92d358447cb9e50b65092b7169f931d29e05c1404a2cd08c6fd7e32ba90");
@@ -60,7 +63,7 @@ mod tests {
                 version: TransactionVersion::TWO,
                 max_fee,
                 signature: vec![],
-                nonce: TransactionNonce(Default::default()),
+                nonce,
                 contract_class,
                 sender_address: account_contract_address,
                 compiled_class_hash: casm_hash,
@@ -71,6 +74,7 @@ mod tests {
     fn deploy_transaction(
         account_contract_address: ContractAddress,
         universal_deployer_address: ContractAddress,
+        nonce: TransactionNonce,
     ) -> BroadcastedTransaction {
         let max_fee = Fee::default();
         let sierra_hash =
@@ -78,7 +82,7 @@ mod tests {
 
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(
             BroadcastedInvokeTransactionV1 {
-                nonce: transaction_nonce!("0x1"),
+                nonce,
                 version: TransactionVersion::ONE,
                 max_fee,
                 signature: vec![],
@@ -104,12 +108,15 @@ mod tests {
         ))
     }
 
-    fn invoke_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn invoke_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         let max_fee = Fee::default();
 
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(
             BroadcastedInvokeTransactionV1 {
-                nonce: transaction_nonce!("0x2"),
+                nonce,
                 version: TransactionVersion::ONE,
                 max_fee,
                 signature: vec![],
@@ -147,7 +154,10 @@ mod tests {
         ))
     }
 
-    fn invoke_v3_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn invoke_v3_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V3(
             BroadcastedInvokeTransactionV3 {
                 version: TransactionVersion::THREE,
@@ -165,7 +175,7 @@ mod tests {
                     // AccountCallArray::data_len
                     call_param!("0"),
                 ],
-                nonce: transaction_nonce!("0x3"),
+                nonce,
                 resource_bounds: ResourceBounds::default(),
                 tip: Tip(0),
                 paymaster_data: vec![],
@@ -185,16 +195,22 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction =
+            declare_transaction(account_contract_address, TransactionNonce::default());
         // deploy with unversal deployer contract
-        let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+        let deploy_transaction = deploy_transaction(
+            account_contract_address,
+            universal_deployer_address,
+            transaction_nonce!("0x1"),
+        );
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x2"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x3"));
 
         let input = EstimateFeeInput {
             request: vec![
@@ -262,7 +278,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn declare_deploy_and_invoke_sierra_class_starknet_0_13_1_1() {
+    async fn declare_deploy_and_invoke_sierra_class_starknet_0_13_1_with_invalid_nonce_will_pass() {
         let (context, last_block_header, account_contract_address, universal_deployer_address) =
             crate::test_setup::test_context_with_starknet_version(StarknetVersion::new(
                 0, 13, 1, 1,
@@ -270,16 +286,113 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction =
+            declare_transaction(account_contract_address, transaction_nonce!("0x1"));
         // deploy with unversal deployer contract
-        let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+        let deploy_transaction = deploy_transaction(
+            account_contract_address,
+            universal_deployer_address,
+            transaction_nonce!("0x2"),
+        );
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x3"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x4"));
+
+        let input = EstimateFeeInput {
+            request: vec![
+                declare_transaction,
+                deploy_transaction,
+                invoke_transaction,
+                invoke_v0_transaction,
+                invoke_v3_transaction,
+            ],
+            simulation_flags: SimulationFlags(vec![]),
+            block_id: BlockId::Number(last_block_header.number),
+        };
+        let result = super::estimate_fee(context, input).await.unwrap();
+        let declare_expected = FeeEstimate {
+            gas_consumed: 878.into(),
+            gas_price: 1.into(),
+            overall_fee: 1262.into(),
+            unit: PriceUnit::Wei,
+            data_gas_consumed: Some(192.into()),
+            data_gas_price: Some(2.into()),
+        };
+        let deploy_expected = FeeEstimate {
+            gas_consumed: 16.into(),
+            gas_price: 1.into(),
+            overall_fee: 464.into(),
+            unit: PriceUnit::Wei,
+            data_gas_consumed: Some(224.into()),
+            data_gas_price: Some(2.into()),
+        };
+        let invoke_expected = FeeEstimate {
+            gas_consumed: 12.into(),
+            gas_price: 1.into(),
+            overall_fee: 268.into(),
+            unit: PriceUnit::Wei,
+            data_gas_consumed: Some(128.into()),
+            data_gas_price: Some(2.into()),
+        };
+        let invoke_v0_expected = FeeEstimate {
+            gas_consumed: 10.into(),
+            gas_price: 1.into(),
+            overall_fee: 266.into(),
+            unit: PriceUnit::Wei,
+            data_gas_consumed: Some(128.into()),
+            data_gas_price: Some(2.into()),
+        };
+        let invoke_v3_expected = FeeEstimate {
+            gas_consumed: 12.into(),
+            // STRK gas price is 2
+            gas_price: 2.into(),
+            overall_fee: 280.into(),
+            unit: PriceUnit::Fri,
+            data_gas_consumed: Some(128.into()),
+            data_gas_price: Some(2.into()),
+        };
+        assert_eq!(
+            result,
+            vec![
+                declare_expected,
+                deploy_expected,
+                invoke_expected,
+                invoke_v0_expected,
+                invoke_v3_expected,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn declare_deploy_and_invoke_sierra_class_starknet_0_13_1_1_with_arbitrary_nonce() {
+        let (context, last_block_header, account_contract_address, universal_deployer_address) =
+            crate::test_setup::test_context_with_starknet_version(StarknetVersion::new(
+                0, 13, 1, 1,
+            ))
+            .await;
+
+        // declare test class
+        let declare_transaction =
+            declare_transaction(account_contract_address, transaction_nonce!("0x1000"));
+        // deploy with unversal deployer contract
+        let deploy_transaction = deploy_transaction(
+            account_contract_address,
+            universal_deployer_address,
+            transaction_nonce!("0x123"),
+        );
+        // invoke deployed contract
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x31"));
+        // do the same invoke with a v0 transaction
+        let invoke_v0_transaction = invoke_v0_transaction();
+        // do the same invoke with a v3 transaction
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x4"));
 
         let input = EstimateFeeInput {
             request: vec![
