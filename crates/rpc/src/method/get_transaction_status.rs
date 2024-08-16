@@ -21,7 +21,7 @@ pub enum Output {
 pub enum Error {
     Internal(anyhow::Error),
     TxnHashNotFound,
-    GatewayError(starknet_gateway_types::error::StarknetError),
+    GatewayIssue(starknet_gateway_types::error::StarknetError),
 }
 
 impl From<anyhow::Error> for Error {
@@ -35,7 +35,7 @@ impl From<starknet_gateway_types::error::SequencerError> for Error {
         use starknet_gateway_types::error::SequencerError::*;
 
         match e {
-            StarknetError(e) => Error::GatewayError(e),
+            StarknetError(e) => Error::GatewayIssue(e),
             ReqwestError(e) => Error::Internal(e.into()),
             InvalidStarknetErrorVariant => Error::Internal(anyhow::anyhow!("Invalid error variant received from gateway")),
         }
@@ -47,7 +47,7 @@ impl From<Error> for crate::error::ApplicationError {
         match e {
             Error::Internal(internal) => Self::Internal(internal),
             Error::TxnHashNotFound => Self::TxnHashNotFound,
-            Error::GatewayError(gateway_error) => Self::GatewayError(gateway_error),
+            Error::GatewayIssue(gateway_error) => Self::GatewayError(gateway_error),
         }
     }
 }
