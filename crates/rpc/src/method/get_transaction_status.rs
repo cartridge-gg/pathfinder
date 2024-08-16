@@ -17,7 +17,40 @@ pub enum Output {
     AcceptedOnL2(TxnExecutionStatus),
 }
 
-crate::error::generate_rpc_error_subset!(Error: TxnHashNotFound);
+#[derive(Debug)]
+pub enum Error {
+    Internal(anyhow::Error),
+    TxnHashNotFound,
+    GatewayError(starknet_gateway_types::error::StarknetError),
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(e: anyhow::Error) -> Self {
+        Self::Internal(e)
+    }
+}
+
+impl From<starknet_gateway_types::error::SequencerError> for Error {
+    fn from(e: starknet_gateway_types::error::SequencerError) -> Self {
+        use starknet_gateway_types::error::SequencerError::*;
+
+        match e {
+            StarknetError(e) => Error::GatewayError(e),
+            ReqwestError(e) => Error::Internal(e.into()),
+            InvalidStarknetErrorVariant => Error::Internal(anyhow::anyhow!("Invalid error variant received from gateway")),
+        }
+    }
+}
+
+impl From<Error> for crate::error::ApplicationError {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::Internal(internal) => Self::Internal(internal),
+            Error::TxnHashNotFound => Self::TxnHashNotFound,
+            Error::GatewayError(gateway_error) => Self::GatewayError(gateway_error),
+        }
+    }
+}
 
 pub async fn get_transaction_status(context: RpcContext, input: Input) -> Result<Output, Error> {
     // Check database.
