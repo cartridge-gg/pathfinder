@@ -37,7 +37,9 @@ impl From<starknet_gateway_types::error::SequencerError> for Error {
         match e {
             StarknetError(e) => Error::GatewayIssue(e),
             ReqwestError(e) => Error::Internal(e.into()),
-            InvalidStarknetErrorVariant => Error::Internal(anyhow::anyhow!("Invalid error variant received from gateway")),
+            InvalidStarknetErrorVariant => Error::Internal(anyhow::anyhow!(
+                "Invalid error variant received from gateway"
+            )),
         }
     }
 }
