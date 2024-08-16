@@ -106,11 +106,7 @@ r2d2_sqlite = "0.31.0"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 rayon = "1.11.0"
-reqwest = { version = "0.12.23", default-features = false, features = [
-    "http2",
-    "rustls-tls-native-roots",
-    "charset",
-] }
+reqwest = { version = "0.12.23", default-features = false, features = [ "http2", "rustls-tls-native-roots", "charset" ] }
 rstest = "0.18.2"
 rusqlite = "0.37.0"
 semver = "1.0.18"
