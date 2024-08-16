@@ -217,7 +217,10 @@ mod tests {
     use crate::types::{ContractClass, SierraContractClass};
     use crate::RpcVersion;
 
-    fn declare_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn declare_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         let sierra_definition = include_bytes!("../../fixtures/contracts/storage_access.json");
         let sierra_hash =
             class_hash!("0544b92d358447cb9e50b65092b7169f931d29e05c1404a2cd08c6fd7e32ba90");
@@ -239,7 +242,7 @@ mod tests {
                 version: TransactionVersion::TWO,
                 max_fee,
                 signature: vec![],
-                nonce: TransactionNonce(Default::default()),
+                nonce,
                 contract_class,
                 sender_address: account_contract_address,
                 compiled_class_hash: casm_hash,
@@ -250,6 +253,7 @@ mod tests {
     fn deploy_transaction(
         account_contract_address: ContractAddress,
         universal_deployer_address: ContractAddress,
+        nonce: TransactionNonce,
     ) -> BroadcastedTransaction {
         let max_fee = Fee::default();
         let sierra_hash =
@@ -257,7 +261,7 @@ mod tests {
 
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(
             BroadcastedInvokeTransactionV1 {
-                nonce: transaction_nonce!("0x1"),
+                nonce,
                 version: TransactionVersion::ONE,
                 max_fee,
                 signature: vec![],
@@ -285,12 +289,15 @@ mod tests {
         ))
     }
 
-    fn invoke_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn invoke_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         let max_fee = Fee::default();
 
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(
             BroadcastedInvokeTransactionV1 {
-                nonce: transaction_nonce!("0x2"),
+                nonce,
                 version: TransactionVersion::ONE,
                 max_fee,
                 signature: vec![],
@@ -330,7 +337,10 @@ mod tests {
         ))
     }
 
-    fn invoke_v3_transaction(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+    fn invoke_v3_transaction(
+        account_contract_address: ContractAddress,
+        nonce: TransactionNonce,
+    ) -> BroadcastedTransaction {
         BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V3(
             BroadcastedInvokeTransactionV3 {
                 version: TransactionVersion::THREE,
@@ -350,7 +360,7 @@ mod tests {
                     // AccountCallArray::data_len
                     call_param!("0"),
                 ],
-                nonce: transaction_nonce!("0x3"),
+                nonce,
                 resource_bounds: ResourceBounds::default(),
                 tip: Tip(0),
                 paymaster_data: vec![],
@@ -374,16 +384,18 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction = declare_transaction(account_contract_address, transaction_nonce!("0x0"));
         // deploy with universal deployer contract
         let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+            deploy_transaction(account_contract_address, universal_deployer_address, transaction_nonce!("0x1"));
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x2"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x3"));
 
         let input = Input {
             request: vec![
@@ -419,16 +431,18 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction = declare_transaction(account_contract_address, transaction_nonce!("0x0"));
         // deploy with universal deployer contract
         let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+            deploy_transaction(account_contract_address, universal_deployer_address, transaction_nonce!("0x1"));
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x2"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x3"));
 
         let input = Input {
             request: vec![
@@ -464,16 +478,18 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction = declare_transaction(account_contract_address, transaction_nonce!("0x0"));
         // deploy with universal deployer contract
         let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+            deploy_transaction(account_contract_address, universal_deployer_address, transaction_nonce!("0x1"));
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction =
+            invoke_transaction(account_contract_address, transaction_nonce!("0x2"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction =
+            invoke_v3_transaction(account_contract_address, transaction_nonce!("0x3"));
 
         let input = Input {
             request: vec![
@@ -509,16 +525,16 @@ mod tests {
             .await;
 
         // declare test class
-        let declare_transaction = declare_transaction(account_contract_address);
+        let declare_transaction = declare_transaction(account_contract_address, transaction_nonce!("0x0"));
         // deploy with universal deployer contract
         let deploy_transaction =
-            deploy_transaction(account_contract_address, universal_deployer_address);
+            deploy_transaction(account_contract_address, universal_deployer_address, transaction_nonce!("0x1"));
         // invoke deployed contract
-        let invoke_transaction = invoke_transaction(account_contract_address);
+        let invoke_transaction = invoke_transaction(account_contract_address, transaction_nonce!("0x2"));
         // do the same invoke with a v0 transaction
         let invoke_v0_transaction = invoke_v0_transaction();
         // do the same invoke with a v3 transaction
-        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address);
+        let invoke_v3_transaction = invoke_v3_transaction(account_contract_address, transaction_nonce!("0x3"));
 
         let input = Input {
             request: vec![
