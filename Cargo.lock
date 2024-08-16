@@ -930,8 +930,7 @@ dependencies = [
 [[package]]
 name = "blockifier"
 version = "0.8.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fb87d3c5d71fe593c120cd73036d3982986596942e3c1a5dc81e2661f397cf4"
+source = "git+https://github.com/cartridge-gg/blockifier?branch=nonce-check-flag#442ac12942deff3a4ea9a7d71bf4fe1f71292447"
 dependencies = [
  "anyhow",
  "ark-ec",
@@ -954,6 +953,7 @@ dependencies = [
  "num-rational",
  "num-traits 0.2.19",
  "once_cell",
+ "paste",
  "phf",
  "serde",
  "serde_json",
