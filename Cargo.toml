@@ -1,4 +1,9 @@
 [workspace]
+exclude = [
+    "crates/load-test",
+    "crates/stark_hash_python",
+    "utils/pathfinder-probe",
+]
 members = [
     "crates/block-hashes",
     "crates/class-hash",
@@ -24,13 +29,6 @@ members = [
     "crates/storage",
     "crates/tagged",
     "crates/tagged-debug-derive",
-    "crates/util",
-    "crates/version",
-]
-exclude = [
-    "crates/load-test",
-    "crates/stark_hash_python",
-    "utils/pathfinder-probe",
 ]
 resolver = "2"
 
@@ -38,8 +36,8 @@ resolver = "2"
 overflow-checks = true
 
 [profile.release-lto]
-inherits = "release"
 codegen-units = 1
+inherits = "release"
 lto = true
 
 [profile.dev.package.flate2]
@@ -122,11 +120,7 @@ r2d2_sqlite = "0.31.0"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 rayon = "1.8.0"
-reqwest = { version = "0.12.5", default-features = false, features = [
-    "http2",
-    "rustls-tls-native-roots",
-    "charset",
-] }
+reqwest = { version = "0.12.5", default-features = false, features = [ "http2", "rustls-tls-native-roots", "charset" ] }
 rstest = "0.18.2"
 rusqlite = "0.37.0"
 semver = "1.0.18"
