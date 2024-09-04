@@ -43,16 +43,20 @@ mod versioned_constants {
     const BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_1_1: &[u8] =
         include_bytes!("../resources/versioned_constants_13_1_1.json");
 
+    const BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_2: &[u8] =
+        include_bytes!("../resources/versioned_constants_13_2.json");
+
     const STARKNET_VERSION_0_13_1: StarknetVersion = StarknetVersion::new(0, 13, 1, 0);
 
     const STARKNET_VERSION_0_13_1_1: StarknetVersion = StarknetVersion::new(0, 13, 1, 1);
 
     const STARKNET_VERSION_0_13_2: StarknetVersion = StarknetVersion::new(0, 13, 2, 0);
 
-    pub static BLOCKIFIER_VERSIONED_CONSTANTS_0_13_0: LazyLock<VersionedConstants> =
-        LazyLock::new(|| {
-            serde_json::from_slice(BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_0).unwrap()
-        });
+    const STARKNET_VERSION_0_13_2_1: StarknetVersion = StarknetVersion::new(0, 13, 2, 1);
+
+    lazy_static::lazy_static! {
+        pub static ref BLOCKIFIER_VERSIONED_CONSTANTS_0_13_0: VersionedConstants =
+            serde_json::from_slice(BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_0).unwrap();
 
     pub static BLOCKIFIER_VERSIONED_CONSTANTS_0_13_1: LazyLock<VersionedConstants> =
         LazyLock::new(|| {
@@ -62,7 +66,9 @@ mod versioned_constants {
     pub static BLOCKIFIER_VERSIONED_CONSTANTS_0_13_1_1: LazyLock<VersionedConstants> =
         LazyLock::new(|| {
             serde_json::from_slice(BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_1_1).unwrap()
-        });
+    pub static ref BLOCKIFIER_VERSIONED_CONSTANTS_0_13_2: VersionedConstants =
+            serde_json::from_slice(BLOCKIFIER_VERSIONED_CONSTANTS_JSON_0_13_2).unwrap();
+    });
 
     pub(super) fn for_version(
         version: &StarknetVersion,
@@ -75,6 +81,8 @@ mod versioned_constants {
             Cow::Borrowed(&BLOCKIFIER_VERSIONED_CONSTANTS_0_13_1)
         } else if version < &STARKNET_VERSION_0_13_2 {
             Cow::Borrowed(&BLOCKIFIER_VERSIONED_CONSTANTS_0_13_1_1)
+        } else if version < &STARKNET_VERSION_0_13_2_1 {
+            Cow::Borrowed(&BLOCKIFIER_VERSIONED_CONSTANTS_0_13_2)
         } else {
             custom_versioned_constants
                 .map(Cow::Owned)
