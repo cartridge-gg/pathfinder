@@ -96,7 +96,7 @@ pub async fn simulate_transactions(
                     context.chain_id,
                     skip_validate,
                     skip_fee_charge,
-                    false
+                    true 
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -639,7 +639,7 @@ pub(crate) mod tests {
                 EntryPoint,
                 ResourceAmount,
                 ResourcePricePerUnit,
-                Tip,
+                Tip, TransactionNonce,
             };
 
             use super::*;
@@ -651,7 +651,7 @@ pub(crate) mod tests {
                 BroadcastedTransaction,
             };
 
-            pub fn declare(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+            pub fn declare(account_contract_address: ContractAddress, nonce: Option<TransactionNonce>) -> BroadcastedTransaction {
                 let contract_class =
                     crate::types::ContractClass::from_definition_bytes(SIERRA_DEFINITION)
                         .unwrap()
@@ -665,7 +665,7 @@ pub(crate) mod tests {
                         version: TransactionVersion::TWO,
                         max_fee: MAX_FEE,
                         signature: vec![],
-                        nonce: transaction_nonce!("0x0"),
+                        nonce: nonce.unwrap_or(transaction_nonce!("0x0")),
                         contract_class,
                         sender_address: account_contract_address,
                         compiled_class_hash: CASM_HASH,
@@ -1605,7 +1605,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -1647,7 +1647,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -1691,7 +1691,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -1731,7 +1731,53 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
+                fixtures::input::universal_deployer(
+                    account_contract_address,
+                    universal_deployer_address,
+                ),
+                fixtures::input::invoke_v3_with_data_gas_bound(account_contract_address),
+            ],
+            block_id: BlockId::Number(last_block_header.number),
+            simulation_flags: crate::dto::SimulationFlags(vec![]),
+        };
+        let result = simulate_transactions(context, input).await.unwrap();
+
+        let serializer = crate::dto::Serializer {
+            version: RpcVersion::V08,
+        };
+        let result_serializable = result.0.into_iter().collect::<Vec<_>>();
+        let result_serialized = serializer
+            .serialize_iter(
+                result_serializable.len(),
+                &mut result_serializable.into_iter(),
+            )
+            .unwrap();
+
+        let expected_str = include_str!(
+            "../../fixtures/0.8.0/simulations/\
+             declare_deploy_and_invoke_sierra_class_starknet_0_13_4.json"
+        );
+        let expected_json: serde_json::Value =
+            serde_json::from_str(expected_str).expect("Failed to parse fixture as JSON");
+
+        pretty_assertions_sorted::assert_eq!(
+            result_serialized,
+            expected_json,
+            "\nExpected fixture content from {}\nGot output",
+            "simulations/declare_deploy_and_invoke_sierra_class_starknet_0_13_4.json"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn declare_deploy_and_invoke_sierra_class_starknet_0_13_4_with_tx_nonce_higher_than_account_nonce() {
+        let (storage, last_block_header, account_contract_address, universal_deployer_address, _) =
+            setup_storage_with_starknet_version(StarknetVersion::new(0, 13, 4, 0)).await;
+        let context = RpcContext::for_tests().with_storage(storage);
+
+        let input = SimulateTransactionInput {
+            transactions: vec![
+                fixtures::input::declare(account_contract_address, Some(transaction_nonce!("0x1337"))),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
