@@ -3,10 +3,7 @@ use pathfinder_executor::TransactionExecutionError;
 
 use crate::context::RpcContext;
 use crate::executor::{
-    calldata_limit_exceeded,
-    signature_elem_limit_exceeded,
-    ExecutionStateError,
-    CALLDATA_LIMIT,
+    calldata_limit_exceeded, signature_elem_limit_exceeded, ExecutionStateError, CALLDATA_LIMIT,
     SIGNATURE_ELEMENT_LIMIT,
 };
 use crate::types::request::BroadcastedTransaction;
@@ -127,7 +124,7 @@ pub async fn simulate_transactions(
                     context.chain_id,
                     skip_validate,
                     skip_fee_charge,
-                    false
+                    true,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -247,11 +244,10 @@ pub(crate) mod tests {
     use pathfinder_common::prelude::*;
     use pathfinder_common::transaction::{DataAvailabilityMode, ResourceBound, ResourceBounds};
     use pathfinder_crypto::Felt;
+    use pathfinder_executor::types::FeeEstimate;
+    use pathfinder_executor::types::PriceUnit;
     use pathfinder_executor::types::{
-        DeclareTransactionExecutionInfo,
-        DeployAccountTransactionExecutionInfo,
-        FeeEstimate,
-        PriceUnit,
+        DeclareTransactionExecutionInfo, DeployAccountTransactionExecutionInfo,
     };
     use pathfinder_storage::Storage;
     use starknet_gateway_test_fixtures::class_definitions::ERC20_CONTRACT_DEFINITION_CLASS_HASH;
@@ -261,14 +257,11 @@ pub(crate) mod tests {
     use crate::dto::{DeserializeForVersion, SerializeForVersion, Serializer};
     use crate::executor::{CALLDATA_LIMIT, SIGNATURE_ELEMENT_LIMIT};
     use crate::method::simulate_transactions::{
-        SimulateTransactionError,
-        SimulateTransactionInput,
+        SimulateTransactionError, SimulateTransactionInput,
     };
+    use crate::types::request::BroadcastedDeployAccountTransactionV3;
     use crate::types::request::{
-        BroadcastedDeclareTransaction,
-        BroadcastedDeclareTransactionV1,
-        BroadcastedDeployAccountTransactionV3,
-        BroadcastedTransaction,
+        BroadcastedDeclareTransaction, BroadcastedDeclareTransactionV1, BroadcastedTransaction,
     };
     use crate::types::BlockId;
     use crate::RpcVersion;
@@ -676,21 +669,23 @@ pub(crate) mod tests {
         pub mod input {
             use pathfinder_common::prelude::*;
             use pathfinder_common::transaction::{
-                DataAvailabilityMode,
-                ResourceBound,
-                ResourceBounds,
+                DataAvailabilityMode, ResourceBound, ResourceBounds,
+            };
+            use pathfinder_common::{
+                CallParam, EntryPoint, ResourceAmount, ResourcePricePerUnit, Tip, TransactionNonce,
             };
 
             use super::*;
             use crate::types::request::{
-                BroadcastedDeclareTransactionV2,
-                BroadcastedInvokeTransaction,
-                BroadcastedInvokeTransactionV1,
-                BroadcastedInvokeTransactionV3,
+                BroadcastedDeclareTransactionV2, BroadcastedInvokeTransaction,
+                BroadcastedInvokeTransactionV1, BroadcastedInvokeTransactionV3,
                 BroadcastedTransaction,
             };
 
-            pub fn declare(account_contract_address: ContractAddress) -> BroadcastedTransaction {
+            pub fn declare(
+                account_contract_address: ContractAddress,
+                nonce: Option<TransactionNonce>,
+            ) -> BroadcastedTransaction {
                 let contract_class =
                     crate::types::ContractClass::from_definition_bytes(SIERRA_DEFINITION)
                         .unwrap()
@@ -704,7 +699,7 @@ pub(crate) mod tests {
                         version: TransactionVersion::TWO,
                         max_fee: MAX_FEE,
                         signature: vec![],
-                        nonce: transaction_nonce!("0x0"),
+                        nonce: nonce.unwrap_or(transaction_nonce!("0x0")),
                         contract_class,
                         sender_address: account_contract_address,
                         compiled_class_hash: CASM_HASH,
@@ -2439,7 +2434,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -2485,7 +2480,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -2533,7 +2528,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, None),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -2581,7 +2576,7 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, Some(transaction_nonce!("0x1"))),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
@@ -2625,7 +2620,103 @@ pub(crate) mod tests {
 
         let input = SimulateTransactionInput {
             transactions: vec![
-                fixtures::input::declare(account_contract_address),
+                fixtures::input::declare(account_contract_address, Some(transaction_nonce!("0x1"))),
+                fixtures::input::universal_deployer(
+                    account_contract_address,
+                    universal_deployer_address,
+                ),
+                fixtures::input::invoke_v3_with_data_gas_bound(account_contract_address),
+            ],
+            block_id: BlockId::Number(last_block_header.number),
+            simulation_flags: crate::dto::SimulationFlags(vec![]),
+        };
+        let result = simulate_transactions(context, input, version)
+            .await
+            .unwrap();
+
+        let serializer = crate::dto::Serializer { version };
+        let result_serializable = result.0.into_iter().collect::<Vec<_>>();
+        let result_serialized = serializer
+            .serialize_iter(
+                result_serializable.len(),
+                &mut result_serializable.into_iter(),
+            )
+            .unwrap();
+
+        crate::assert_json_matches_fixture!(
+            result_serialized,
+            version,
+            "simulations/declare_deploy_and_invoke_sierra_class_starknet_0_14_0.json"
+        );
+    }
+
+    #[rstest::rstest]
+    #[case::v06(RpcVersion::V06)]
+    #[case::v07(RpcVersion::V07)]
+    #[case::v08(RpcVersion::V08)]
+    #[case::v09(RpcVersion::V09)]
+    #[test_log::test(tokio::test)]
+    async fn declare_deploy_and_invoke_sierra_class_starknet_0_13_4_with_tx_nonce_higher_than_account_nonce(
+        #[case] version: RpcVersion,
+    ) {
+        let (storage, last_block_header, account_contract_address, universal_deployer_address, _) =
+            setup_storage_with_starknet_version(StarknetVersion::new(0, 13, 4, 0)).await;
+        let context = RpcContext::for_tests().with_storage(storage);
+
+        let input = SimulateTransactionInput {
+            transactions: vec![
+                fixtures::input::declare(
+                    account_contract_address,
+                    Some(transaction_nonce!("0x1337")),
+                ),
+                fixtures::input::universal_deployer(
+                    account_contract_address,
+                    universal_deployer_address,
+                ),
+                fixtures::input::invoke_v3_with_data_gas_bound(account_contract_address),
+            ],
+            block_id: BlockId::Number(last_block_header.number),
+            simulation_flags: crate::dto::SimulationFlags(vec![]),
+        };
+        let result = simulate_transactions(context, input, version)
+            .await
+            .unwrap();
+
+        let serializer = crate::dto::Serializer { version };
+        let result_serializable = result.0.into_iter().collect::<Vec<_>>();
+        let result_serialized = serializer
+            .serialize_iter(
+                result_serializable.len(),
+                &mut result_serializable.into_iter(),
+            )
+            .unwrap();
+
+        crate::assert_json_matches_fixture!(
+            result_serialized,
+            version,
+            "simulations/declare_deploy_and_invoke_sierra_class_starknet_0_13_4.json"
+        );
+    }
+
+    #[rstest::rstest]
+    #[case::v06(RpcVersion::V06)]
+    #[case::v07(RpcVersion::V07)]
+    #[case::v08(RpcVersion::V08)]
+    #[case::v09(RpcVersion::V09)]
+    #[test_log::test(tokio::test)]
+    async fn declare_deploy_and_invoke_sierra_class_starknet_0_14_0_with_tx_nonce_higher_than_account_nonce(
+        #[case] version: RpcVersion,
+    ) {
+        let (storage, last_block_header, account_contract_address, universal_deployer_address, _) =
+            setup_storage_with_starknet_version(StarknetVersion::new(0, 14, 0, 0)).await;
+        let context = RpcContext::for_tests().with_storage(storage);
+
+        let input = SimulateTransactionInput {
+            transactions: vec![
+                fixtures::input::declare(
+                    account_contract_address,
+                    Some(transaction_nonce!("0x1337")),
+                ),
                 fixtures::input::universal_deployer(
                     account_contract_address,
                     universal_deployer_address,
